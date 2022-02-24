@@ -17,10 +17,10 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.6", "3.7", "3.8"]
-        numba: [false]
+        numba: [null]
         include: 
           - python-version: 3.7
-          - numba: true
+          - numba: test-numba
 
     steps:
     - uses: actions/checkout@v2
