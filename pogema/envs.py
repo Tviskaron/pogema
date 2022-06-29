@@ -1,9 +1,11 @@
 import numpy as np
 import gym
 from gym.error import ResetNeeded
+from gym.spaces import Box
 
 from pogema.grid import Grid
 from pogema.grid_config import GridConfig
+from pogema.wrappers.matrix_observation import MatrixObservationWrapper, MatrixOnlyObservationWrapper
 from pogema.wrappers.metrics import MetricsWrapper
 from pogema.wrappers.multi_time_limit import MultiTimeLimit
 
@@ -21,6 +23,10 @@ class ActionsSampler:
         return self._rnd.integers(self._num_actions, size=dim)
 
 
+class FullStateNotAvailableError(Exception):
+    pass
+
+
 class PogemaBase(gym.Env):
 
     def step(self, action):
@@ -29,15 +35,21 @@ class PogemaBase(gym.Env):
     def reset(self, **kwargs):
         raise NotImplementedError
 
-    def __init__(self, config: GridConfig = GridConfig()):
+    def __init__(self, grid_config: GridConfig = GridConfig()):
         # noinspection PyTypeChecker
         self.grid: Grid = None
-        self.config = config
+        self.config = grid_config
 
         full_size = self.config.obs_radius * 2 + 1
-        self.observation_space = gym.spaces.Box(0.0, 1.0, shape=(3, full_size, full_size))
         self.action_space = gym.spaces.Discrete(len(self.config.MOVES))
         self._multi_action_sampler = ActionsSampler(self.action_space.n, seed=self.config.seed)
+
+        self.observation_space: gym.spaces.Dict = gym.spaces.Dict(
+            obstacles=gym.spaces.Box(0.0, 1.0, shape=(full_size, full_size)),
+            agents=gym.spaces.Box(0.0, 1.0, shape=(full_size, full_size)),
+            xy=Box(low=-1024, high=1024, shape=(2,), dtype=int),
+            target_xy=Box(low=-1024, high=1024, shape=(2,), dtype=int),
+        )
 
     def _get_agents_obs(self, agent_id=0):
         return np.concatenate([
@@ -59,6 +71,34 @@ class PogemaBase(gym.Env):
 
     def get_num_agents(self):
         return self.config.num_agents
+
+    def _obs(self):
+
+        results = []
+        agents_xy_relative = self.grid.get_agents_xy_relative()
+        targets_xy_relative = self.grid.get_targets_xy_relative()
+
+        for agent_idx in range(self.config.num_agents):
+            result = {}
+            result['obstacles'] = self.grid.get_obstacles_for_agent(agent_idx)
+
+            result['agents'] = self.grid.get_positions(agent_idx)
+            result['xy'] = agents_xy_relative[agent_idx]
+            result['target_xy'] = targets_xy_relative[agent_idx]
+            results.append(result)
+        return results
+
+    def get_obstacles(self, ignore_borders=False):
+        raise FullStateNotAvailableError
+
+    def get_agents_xy(self, only_active=False, ignore_borders=False):
+        return FullStateNotAvailableError
+
+    def get_targets_xy(self, only_active=False, ignore_borders=False):
+        return FullStateNotAvailableError
+
+    def get_state(self, ignore_borders=False, as_dict=False):
+        return FullStateNotAvailableError
 
 
 # class PogemaCoopFinish(PogemaBase):
@@ -98,12 +138,9 @@ class PogemaBase(gym.Env):
 
 
 class Pogema(PogemaBase):
-    def __init__(self, config=GridConfig(num_agents=2)):
-        super().__init__(config)
+    def __init__(self, grid_config=GridConfig(num_agents=2)):
+        super().__init__(grid_config)
         self.active = None
-
-    def _obs(self):
-        return [self._get_agents_obs(index) for index in range(self.config.num_agents)]
 
     def step(self, action: list):
         assert len(action) == self.config.num_agents
@@ -112,9 +149,24 @@ class Pogema(PogemaBase):
         infos = [dict() for _ in range(self.config.num_agents)]
 
         dones = []
+
+        used_cells = {}
+
+        agents_xy = self.grid.get_agents_xy()
+        blocked = 'blocked'
+        visited = 'visited'
+
+        for agent_idx, (x, y) in enumerate(agents_xy):
+            if self.active[agent_idx]:
+                dx, dy = self.config.MOVES[action[agent_idx]]
+                used_cells[x + dx, y + dy] = blocked if (x + dx, y + dy) in used_cells else visited
+                used_cells[x, y] = blocked
         for agent_idx in range(self.config.num_agents):
             if self.active[agent_idx]:
-                self.grid.move(agent_idx, action[agent_idx])
+                x, y = agents_xy[agent_idx]
+                dx, dy = self.config.MOVES[action[agent_idx]]
+                if used_cells.get((x + dx, y + dy), None) != blocked:
+                    self.grid.move(agent_idx, action[agent_idx])
 
             on_goal = self.grid.on_goal(agent_idx)
             if on_goal and self.active[agent_idx]:
@@ -124,11 +176,11 @@ class Pogema(PogemaBase):
             dones.append(on_goal)
 
         for agent_idx in range(self.config.num_agents):
+            infos[agent_idx]['is_active'] = self.active[agent_idx]
+
             if self.grid.on_goal(agent_idx):
                 self.grid.hide_agent(agent_idx)
                 self.active[agent_idx] = False
-
-            infos[agent_idx]['is_active'] = self.active[agent_idx]
 
         obs = self._obs()
         return obs, rewards, dones, infos
@@ -138,27 +190,9 @@ class Pogema(PogemaBase):
         self.active = {agent_idx: True for agent_idx in range(self.config.num_agents)}
         return self._obs()
 
-    def get_agents_xy_relative(self):
-        return self.grid.get_agents_xy_relative()
-
-    def get_targets_xy_relative(self):
-        return self.grid.get_targets_xy_relative()
-
-    def get_obstacles(self, ignore_borders=False):
-        return self.grid.get_obstacles(ignore_borders=ignore_borders)
-
-    def get_agents_xy(self, only_active=False, ignore_borders=False):
-        return self.grid.get_agents_xy(only_active=only_active, ignore_borders=ignore_borders)
-
-    def get_targets_xy(self, only_active=False, ignore_borders=False):
-        return self.grid.get_targets_xy(only_active=only_active, ignore_borders=ignore_borders)
-
-    def get_state(self, ignore_borders=False, as_dict=False):
-        return self.grid.get_state(ignore_borders=ignore_borders, as_dict=as_dict)
-
 
 def _make_pogema(grid_config):
-    env = Pogema(config=grid_config)
+    env = Pogema(grid_config=grid_config)
     env = MultiTimeLimit(env, grid_config.max_episode_steps)
     env = MetricsWrapper(env)
 

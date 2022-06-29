@@ -2,6 +2,7 @@ import numpy as np
 
 from pogema import GridConfig
 from pogema.envs import _make_pogema
+from pogema.wrappers.global_state import GlobalStateWrapper
 
 
 class PyMarlPogema:
@@ -10,7 +11,7 @@ class PyMarlPogema:
         gc = grid_config
         self._grid_config: GridConfig = gc
 
-        self.env = _make_pogema(grid_config)
+        self.env = GlobalStateWrapper(_make_pogema(grid_config))
         self._mh_distance = mh_distance
         self._observations = self.env.reset()
         self.max_episode_steps = gc.max_episode_steps

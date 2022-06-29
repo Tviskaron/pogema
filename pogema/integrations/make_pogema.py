@@ -7,10 +7,12 @@ from pogema.envs import _make_pogema
 from pogema.integrations.pettingzoo import parallel_env
 from pogema.integrations.pymarl import PyMarlPogema
 from pogema.integrations.sample_factory import AutoResetWrapper, IsMultiAgentWrapper
+from pogema.wrappers.matrix_observation import MatrixOnlyObservationWrapper
 
 
 def _make_sample_factory_integration(grid_config):
     env = _make_pogema(grid_config)
+    env = MatrixOnlyObservationWrapper(env)
     env.update_group_name(group_name='episode_extra_stats')
     env = IsMultiAgentWrapper(env)
     env = AutoResetWrapper(env)
