@@ -24,6 +24,7 @@ class Grid:
             obstacles = generate_obstacles(self.config)
         else:
             obstacles = np.array([np.array(line) for line in self.config.map])
+        obstacles = obstacles.astype(np.int32)
 
         if grid_config.targets_xy and grid_config.agents_xy:
             starts_xy, finishes_xy = grid_config.agents_xy, grid_config.targets_xy
@@ -173,12 +174,12 @@ class Grid:
     def get_obstacles_for_agent(self, agent_id):
         x, y = self.positions_xy[agent_id]
         r = self.config.obs_radius
-        return self.obstacles[x - r:x + r + 1, y - r:y + r + 1]
+        return self.obstacles[x - r:x + r + 1, y - r:y + r + 1].astype(np.float32)
 
     def get_positions(self, agent_id):
         x, y = self.positions_xy[agent_id]
         r = self.config.obs_radius
-        return self.positions[x - r:x + r + 1, y - r:y + r + 1]
+        return self.positions[x - r:x + r + 1, y - r:y + r + 1].astype(np.float32)
 
     def get_target(self, agent_id):
 
@@ -201,7 +202,7 @@ class Grid:
         dx = min(dx, c.obs_radius) if dx >= 0 else max(dx, -c.obs_radius)
         dy = min(dy, c.obs_radius) if dy >= 0 else max(dy, -c.obs_radius)
         result[c.obs_radius - dx, c.obs_radius - dy] = 1
-        return result
+        return result.astype(np.float32)
 
     def render(self, mode='human'):
         outfile = StringIO() if mode == 'ansi' else sys.stdout
