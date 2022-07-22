@@ -1,20 +1,18 @@
 import sys
 from typing import Optional, Union
 from pydantic import BaseModel, validator
-import pydantic
+
 if sys.version_info >= (3, 8):
     from typing import Literal
 else:
     from typing_extensions import Literal
 
-class Config:
-    arbitrary_types_allowed = True
 
 class GridConfig(BaseModel, ):
     FREE: Literal[0] = 0
     OBSTACLE: Literal[1] = 1
     MOVES: list = [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1], ]
-    pogema_type: Literal['disappearing', 'life_long', 'non_disappearing'] = 'disappearing'
+    on_target: Literal['finish', 'nothing', 'restart'] = 'finish'
     seed: Optional[int] = None
     size: int = 8
     density: float = 0.3
@@ -25,14 +23,12 @@ class GridConfig(BaseModel, ):
 
     map: Union[list, str] = None
 
-    disappear_on_goal: Literal[True, False] = True
     empty_outside: bool = True
 
     map_name: str = None
 
     integration: Literal['SampleFactory', 'PyMARL', 'rllib', 'gym', 'PettingZoo'] = None
     max_episode_steps: int = 64
-    steps_before_renew_target: Optional[int] = None
 
     @validator('seed')
     def seed_initialization(cls, v):
