@@ -36,7 +36,7 @@ class PogemaParallel:
         assert mode == 'human'
         return self.pogema.render()
 
-    def reset(self):
+    def reset(self, seed=None, options=None):
         observations = self.pogema.reset()
         self.agents = self.possible_agents[:]
         self.num_moves = 0
