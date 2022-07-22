@@ -4,7 +4,7 @@ import gym
 class MetricsWrapper(gym.Wrapper):
     def __init__(self, env, group_name='metrics'):
         super().__init__(env)
-        self._ISR = None
+        self._ISR = {}
         self._group_name = group_name
 
     def update_group_name(self, group_name):
@@ -27,12 +27,8 @@ class MetricsWrapper(gym.Wrapper):
 
             for agent_idx in range(self.env.get_num_agents()):
                 infos[agent_idx][self._group_name].update(ISR=self._ISR[agent_idx])
-
+            self._ISR = {}
         return obs, reward, done, infos
-
-    def reset(self, **kwargs):
-        self._ISR = {}
-        return self.env.reset(**kwargs)
 
 
 class MetricsWrapperLifeLong(gym.Wrapper):
@@ -65,7 +61,7 @@ class MetricsWrapperLifeLong(gym.Wrapper):
             for agent_idx in range(self._num_agents):
                 infos[agent_idx][self._group_name].update(AchievedGoals=self._AchievedGoals[agent_idx])
                 if self._AchievedGoals[agent_idx]:
-                    infos[agent_idx][self._group_name].\
+                    infos[agent_idx][self._group_name]. \
                         update(AverageTimeToGoal=self._LastGoal[agent_idx] / self._AchievedGoals[agent_idx])
 
         return obs, reward, done, infos
