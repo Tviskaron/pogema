@@ -132,3 +132,108 @@ class GridConfig(BaseModel, ):
 
         assert len(targets_xy) == len(agents_xy)
         return obstacles, agents_xy, targets_xy
+
+
+class PredefinedDifficultyDensity30(GridConfig):
+    density: float = 0.3
+
+    @validator('density')
+    def density_restrictions(cls, v):
+        assert 0.299999 <= v <= 0.3000001, "density for that predefined configuration must be equal to 0.3"
+        return v
+
+
+class Easy8x8(PredefinedDifficultyDensity30):
+    size: Literal[8] = 8
+    max_episode_steps = 64
+    num_agents: Literal[1] = 1
+
+
+class Normal8x8(PredefinedDifficultyDensity30):
+    size: Literal[8] = 8
+    max_episode_steps = 64
+    num_agents: Literal[2] = 2
+
+
+class Hard8x8(PredefinedDifficultyDensity30):
+    size: Literal[8] = 8
+    max_episode_steps = 64
+    num_agents: Literal[4] = 4
+
+
+class ExtraHard8x8(PredefinedDifficultyDensity30):
+    size: Literal[8] = 8
+    max_episode_steps = 64
+    num_agents: Literal[8] = 8
+
+
+class Easy16x16(PredefinedDifficultyDensity30):
+    size: Literal[16] = 16
+    max_episode_steps = 128
+    num_agents: Literal[4] = 4
+
+
+class Normal16x16(PredefinedDifficultyDensity30):
+    size: Literal[16] = 16
+    max_episode_steps = 128
+    num_agents: Literal[8] = 8
+
+
+class Hard16x16(PredefinedDifficultyDensity30):
+    size: Literal[16] = 16
+    max_episode_steps = 128
+    num_agents: Literal[16] = 16
+
+
+class ExtraHard16x16(PredefinedDifficultyDensity30):
+    size: Literal[16] = 16
+    max_episode_steps = 128
+    num_agents: Literal[32] = 32
+
+
+class Easy32x32(PredefinedDifficultyDensity30):
+    size: Literal[32] = 32
+    max_episode_steps = 256
+    num_agents: Literal[16] = 16
+
+
+class Normal32x32(PredefinedDifficultyDensity30):
+    size: Literal[32] = 32
+    max_episode_steps = 256
+    num_agents: Literal[32] = 32
+
+
+class Hard32x32(PredefinedDifficultyDensity30):
+    size: Literal[32] = 32
+    max_episode_steps = 256
+    num_agents: Literal[64] = 64
+
+
+class ExtraHard32x32(PredefinedDifficultyDensity30):
+    size: Literal[32] = 32
+    max_episode_steps = 256
+    num_agents: Literal[128] = 128
+
+
+class Easy64x64(PredefinedDifficultyDensity30):
+    size: Literal[32] = 64
+    max_episode_steps = 512
+    num_agents: Literal[16] = 64
+
+
+class Normal64x64(PredefinedDifficultyDensity30):
+    size: Literal[32] = 64
+    max_episode_steps = 512
+    num_agents: Literal[16] = 128
+
+
+class Hard64x64(PredefinedDifficultyDensity30):
+    size: Literal[32] = 64
+    max_episode_steps = 512
+    num_agents: Literal[16] = 256
+
+
+class ExtraHard64x64(PredefinedDifficultyDensity30):
+    size: Literal[32] = 64
+    max_episode_steps = 512
+    num_agents: Literal[16] = 512
