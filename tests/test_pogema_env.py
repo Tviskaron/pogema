@@ -1,7 +1,8 @@
 import numpy as np
 
+from pogema import pogema_v0
+from pogema.animation import AnimationMonitor
 from pogema.grid import GridConfig
-from pogema.integrations.make_pogema import make_pogema
 
 
 class ActionMapping:
@@ -13,7 +14,7 @@ class ActionMapping:
 
 
 def test_moving():
-    env = make_pogema(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42))
+    env = pogema_v0(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42))
     ac = ActionMapping()
     env.reset()
 
@@ -39,15 +40,14 @@ def test_moving():
 
 
 def test_types():
-    env = make_pogema(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42))
-    env.reset()
-
-    # todo replace float64 with float32 in grid and add tests
-    # print(obs[0].dtype)
+    env = pogema_v0(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42))
+    obs = env.reset()
+    assert obs[0].dtype == np.float32
 
 
-def run_episode(grid_config):
-    env = make_pogema(grid_config)
+def run_episode(grid_config=None, env=None):
+    if env is None:
+        env = pogema_v0(grid_config)
     env.reset()
 
     obs, rewards, dones, infos = env.reset(), [None], [False], [None]
@@ -77,3 +77,37 @@ def test_metrics():
     assert np.isclose(infos[2]['metrics']['ISR'], 0.0)
     assert np.isclose(infos[3]['metrics']['ISR'], 1.0)
     assert np.isclose(infos[4]['metrics']['ISR'], 0.0)
+
+
+def test_standard_pogema():
+    env = pogema_v0(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42, on_target='finish'))
+    env.reset()
+
+
+def test_standard_pogema_animation():
+    env = pogema_v0(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42, on_target='finish'))
+    env = AnimationMonitor(env)
+    env.reset()
+
+
+def test_non_disappearing_pogema():
+    env = pogema_v0(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42, on_target='nothing'))
+    env.reset()
+
+
+def test_non_disappearing_pogema_animation():
+    env = pogema_v0(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42, on_target='nothing'))
+    env = AnimationMonitor(env)
+    env.reset()
+
+
+def test_life_long_pogema():
+    env = pogema_v0(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42, on_target='restart'))
+    env.reset()
+
+
+def test_life_long_pogema_animation():
+    env = pogema_v0(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42, on_target='restart'))
+    env = AnimationMonitor(env)
+    env.reset()
+    run_episode(env=env)
