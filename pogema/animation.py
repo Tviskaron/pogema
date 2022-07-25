@@ -13,6 +13,9 @@ from pogema.grid import Grid
 
 
 class AnimationSettings(BaseModel):
+    """
+    Settings for the animation.
+    """
     r: int = 35
     stroke_width: int = 10
     scale_size: int = 100
@@ -39,6 +42,9 @@ class AnimationSettings(BaseModel):
 
 
 class AnimationConfig(BaseModel):
+    """
+    Configuration for the animation.
+    """
     directory: str = 'renders/'
     static: bool = False
     show_agents: bool = True
@@ -48,6 +54,9 @@ class AnimationConfig(BaseModel):
 
 
 class GridHolder(BaseModel):
+    """
+    Holds the grid and the history.
+    """
     agents_xy: list = None
     agents_xy_history: list = None
     agents_done_history: list = None
@@ -61,6 +70,9 @@ class GridHolder(BaseModel):
 
 
 class SvgObject:
+    """
+    Main class for the SVG.
+    """
     tag = None
 
     def __init__(self, **kwargs):
@@ -83,6 +95,9 @@ class SvgObject:
 
 
 class Rectangle(SvgObject):
+    """
+    Rectangle class for the SVG.
+    """
     tag = 'rect'
 
     def __init__(self, **kwargs):
@@ -91,6 +106,9 @@ class Rectangle(SvgObject):
 
 
 class Circle(SvgObject):
+    """
+    Circle class for the SVG.
+    """
     tag = 'circle'
 
     def __init__(self, **kwargs):
@@ -99,6 +117,9 @@ class Circle(SvgObject):
 
 
 class Animation(SvgObject):
+    """
+    Animation class for the SVG.
+    """
     tag = 'animate'
 
     def render(self):
@@ -106,12 +127,14 @@ class Animation(SvgObject):
 
 
 class Drawing:
-    pass
+    """
+    Drawing, analog of the DrawSvg class in the pogema package.
+    """
 
-    def __init__(self, height, width, displayInline=False, origin=(0, 0)):
+    def __init__(self, height, width, display_inline=False, origin=(0, 0)):
         self.height = height
         self.width = width
-        self.displayInline = displayInline
+        self.display_inline = display_inline
         self.origin = origin
         self.elements = []
 
@@ -131,6 +154,9 @@ class Drawing:
 
 
 class AnimationMonitor(gym.Wrapper):
+    """
+    Defines the animation, which saves the episode as SVG.
+    """
     def __init__(self, env, animation_config=AnimationConfig()):
         super().__init__(env)
         self.grid_cfg = None
@@ -143,6 +169,11 @@ class AnimationMonitor(gym.Wrapper):
         self._episode_idx = 0
 
     def step(self, action):
+        """
+        Saves information about the episode.
+        :param action: current actions
+        :return: obs, reward, done, info
+        """
         obs, reward, dones, info = self.env.step(action)
 
         self.dones_history.append(dones)
@@ -161,6 +192,13 @@ class AnimationMonitor(gym.Wrapper):
 
     @staticmethod
     def pick_name(grid_config: GridConfig, episode_idx=None, zfill_ep=5):
+        """
+        Picks a name for the SVG file.
+        :param grid_config: configuration of the grid
+        :param episode_idx: idx of the episode
+        :param zfill_ep: zfill for the episode number
+        :return:
+        """
         gc = grid_config
         name = 'pogema'
         if episode_idx is not None:
@@ -175,6 +213,11 @@ class AnimationMonitor(gym.Wrapper):
         return name + '.svg'
 
     def reset(self, **kwargs):
+        """
+        Resets the environment and resets the current positions of agents and targets
+        :param kwargs:
+        :return: obs: observation
+        """
         obs = self.env.reset(**kwargs)
 
         self._episode_idx += 1
@@ -186,6 +229,11 @@ class AnimationMonitor(gym.Wrapper):
         return obs
 
     def create_animation(self, animation_config=None):
+        """
+        Creates the animation.
+        :param animation_config: configuration of the animation
+        :return: drawing: drawing object
+        """
         anim_cfg = animation_config
         if anim_cfg is None:
             anim_cfg = self.animation_config
@@ -212,7 +260,7 @@ class AnimationMonitor(gym.Wrapper):
                         colors=agents_colors, targets_xy=grid.finishes_xy, episode_length=episode_length)
 
         render_width, render_height = gh.height * cfg.scale_size, gh.width * cfg.scale_size
-        drawing = Drawing(width=render_width, height=render_height, displayInline=False, origin=(0, 0))
+        drawing = Drawing(width=render_width, height=render_height, display_inline=False, origin=(0, 0))
         obstacles = self.create_obstacles(gh, anim_cfg)
 
         agents = []
@@ -239,19 +287,47 @@ class AnimationMonitor(gym.Wrapper):
         return drawing
 
     def save_animation(self, name='render.svg', animation_config: typing.Optional[AnimationConfig] = None):
+        """
+        Saves the animation.
+        :param name: name of the file
+        :param animation_config: animation configuration
+        :return: None
+        """
         animation = self.create_animation(animation_config)
         with open(name, "w") as f:
             f.write(animation.render())
 
     @staticmethod
     def fix_point(x, y, length):
+        """
+        Fixes the point to the grid.
+        :param x: coordinate x
+        :param y: coordinate y
+        :param length: size of the grid
+        :return: x, y: fixed coordinates
+        """
         return length - y - 1, x
 
     @staticmethod
-    def check_in_radius(x1, y1, x2, y2, r):
+    def check_in_radius(x1, y1, x2, y2, r) -> bool:
+        """
+        Checks if the point is in the radius.
+        :param x1: coordinate x1
+        :param y1: coordinate y1
+        :param x2: coordinate x2
+        :param y2: coordinate y2
+        :param r: radius
+        :return:
+        """
         return x2 - r <= x1 <= x2 + r and y2 - r <= y1 <= y2 + r
 
     def create_field_of_view(self, grid_holder, animation_config):
+        """
+        Creates the field of view for the egocentric agent.
+        :param grid_holder:
+        :param animation_config:
+        :return:
+        """
         cfg = self.svg_settings
         gh: GridHolder = grid_holder
         ego_idx = animation_config.egocentric_idx
@@ -274,6 +350,13 @@ class AnimationMonitor(gym.Wrapper):
         return result
 
     def animate_field_of_view(self, view, agent_idx, grid_holder):
+        """
+        Animates the field of view.
+        :param view:
+        :param agent_idx:
+        :param grid_holder:
+        :return:
+        """
         gh: GridHolder = grid_holder
         cfg = self.svg_settings
         x_path = []
@@ -295,6 +378,13 @@ class AnimationMonitor(gym.Wrapper):
         view.add_animation(self.compressed_anim('visibility', visibility, cfg.time_scale))
 
     def animate_agents(self, agents, egocentric_idx, grid_holder):
+        """
+        Animates the agents.
+        :param agents:
+        :param egocentric_idx:
+        :param grid_holder:
+        :return:
+        """
         gh: GridHolder = grid_holder
         cfg = self.svg_settings
         for agent_idx, agent in enumerate(agents):
@@ -329,6 +419,14 @@ class AnimationMonitor(gym.Wrapper):
 
     @classmethod
     def compressed_anim(cls, attr_name, tokens, time_scale, rep_cnt='indefinite'):
+        """
+        Compresses the animation.
+        :param attr_name:
+        :param tokens:
+        :param time_scale:
+        :param rep_cnt:
+        :return:
+        """
         tokens, times = cls.compress_tokens(tokens)
         cumulative = [0, ]
         for t in times:
@@ -346,6 +444,14 @@ class AnimationMonitor(gym.Wrapper):
 
     @staticmethod
     def wisely_add(token, cnt, tokens, times):
+        """
+        Adds the token to the tokens and times.
+        :param token:
+        :param cnt:
+        :param tokens:
+        :param times:
+        :return:
+        """
         if cnt > 1:
             tokens += [token, token]
             times += [1, cnt - 1]
@@ -355,7 +461,11 @@ class AnimationMonitor(gym.Wrapper):
 
     @classmethod
     def compress_tokens(cls, input_tokens: list):
-
+        """
+        Compresses the tokens.
+        :param input_tokens:
+        :return:
+        """
         tokens = []
         times = []
         if input_tokens:
@@ -372,6 +482,13 @@ class AnimationMonitor(gym.Wrapper):
         return tokens, times
 
     def animate_targets(self, targets, grid_holder, animation_config):
+        """
+        Animates the targets.
+        :param targets:
+        :param grid_holder:
+        :param animation_config:
+        :return:
+        """
         gh: GridHolder = grid_holder
         cfg = self.svg_settings
         ego_idx = animation_config.egocentric_idx
@@ -406,6 +523,12 @@ class AnimationMonitor(gym.Wrapper):
             target.add_animation(self.compressed_anim("visibility", visibility, cfg.time_scale))
 
     def create_obstacles(self, grid_holder, animation_config):
+        """
+
+        :param grid_holder:
+        :param animation_config:
+        :return:
+        """
         gh = grid_holder
         cfg = self.svg_settings
 
@@ -433,6 +556,13 @@ class AnimationMonitor(gym.Wrapper):
         return result
 
     def animate_obstacles(self, obstacles, grid_holder, animation_config):
+        """
+
+        :param obstacles:
+        :param grid_holder:
+        :param animation_config:
+        :return:
+        """
         gh: GridHolder = grid_holder
         obstacle_idx = 0
         cfg = self.svg_settings
@@ -459,6 +589,12 @@ class AnimationMonitor(gym.Wrapper):
                 obstacle_idx += 1
 
     def create_agents(self, grid_holder, animation_config):
+        """
+        Creates the agents.
+        :param grid_holder:
+        :param animation_config:
+        :return:
+        """
         gh: GridHolder = grid_holder
         cfg = self.svg_settings
 
@@ -487,6 +623,12 @@ class AnimationMonitor(gym.Wrapper):
         return agents
 
     def create_targets(self, grid_holder, animation_config):
+        """
+        Creates the targets.
+        :param grid_holder:
+        :param animation_config:
+        :return:
+        """
         gh: GridHolder = grid_holder
         cfg = self.svg_settings
         targets = []
