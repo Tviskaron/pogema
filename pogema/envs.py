@@ -275,10 +275,12 @@ def _make_pogema(grid_config):
     if grid_config.on_target == 'restart':
         env = PogemaLifeLong(config=grid_config)
     elif grid_config.on_target == 'nothing':
-        # grid_config.disappear_on_goal = False
         env = PogemaCoopFinish(config=grid_config)
-    else:
+    elif grid_config.on_target == 'finish':
         env = Pogema(config=grid_config)
+    else:
+        raise KeyError(f'Unknown on_target: {grid_config.on_target}')
+
     env = MultiTimeLimit(env, grid_config.max_episode_steps)
     if grid_config.on_target == 'restart':
         env = MetricsWrapperLifeLong(env)
