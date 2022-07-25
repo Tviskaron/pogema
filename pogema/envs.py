@@ -12,6 +12,9 @@ from pogema.generator import generate_new_target
 
 
 class ActionsSampler:
+    """
+    Samples the random actions for the given number of agents using the given seed.
+    """
     def __init__(self, num_actions, seed=42):
         self._num_actions = num_actions
         self._rnd = None
@@ -25,6 +28,9 @@ class ActionsSampler:
 
 
 class PogemaBase(gym.Env):
+    """
+    Abstract class of the Pogema environment.
+    """
     metadata = {
         "render_modes": ["ansi"],
         # "render_fps": 4,
@@ -47,6 +53,11 @@ class PogemaBase(gym.Env):
         self._multi_action_sampler = ActionsSampler(self.action_space.n, seed=self.config.seed)
 
     def _get_agents_obs(self, agent_id=0):
+        """
+        Returns the observation of the agent with the given id.
+        :param agent_id:
+        :return:
+        """
         return np.concatenate([
             self.grid.get_obstacles_for_agent(agent_id)[None],
             self.grid.get_positions(agent_id)[None],
@@ -54,17 +65,34 @@ class PogemaBase(gym.Env):
         ])
 
     def check_reset(self):
+        """
+        Checks if the reset needed.
+        :return:
+        """
         if self.grid is None:
             raise ResetNeeded("Please reset environment first!")
 
     def render(self, mode='human'):
+        """
+        Renders the environment using ascii graphics.
+        :param mode:
+        :return:
+        """
         self.check_reset()
         return self.grid.render(mode=mode)
 
     def sample_actions(self):
+        """
+        Samples the random actions for the given number of agents.
+        :return:
+        """
         return self._multi_action_sampler.sample_actions(dim=self.config.num_agents)
 
     def get_num_agents(self):
+        """
+        Returns the number of agents in the environment.
+        :return:
+        """
         return self.config.num_agents
 
 
