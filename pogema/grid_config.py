@@ -22,6 +22,7 @@ class GridConfig(BaseModel, ):
     targets_xy: Optional[list] = None
     collision_system: Literal['block_both', 'priority'] = 'priority'
 
+    observation_type: Literal['POMAPF', 'MAPF', 'default'] = 'default'
     map: Union[list, str] = None
 
     empty_outside: bool = True

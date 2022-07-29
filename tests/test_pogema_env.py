@@ -89,28 +89,54 @@ def test_metrics():
 def test_standard_pogema():
     env = pogema_v0(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42, on_target='finish'))
     env.reset()
+    run_episode(env=env)
+
+
+def test_pomapf_observation():
+    env = pogema_v0(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42, on_target='finish',
+                               observation_type='POMAPF'))
+    obs = env.reset()
+    assert 'agents' in obs[0]
+    assert 'obstacles' in obs[0]
+    assert 'xy' in obs[0]
+    assert 'target_xy' in obs[0]
+    run_episode(env=env)
+
+
+def test_mapf_observation():
+    env = pogema_v0(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42, on_target='finish',
+                               observation_type='MAPF'))
+    obs = env.reset()
+    assert 'global_obstacles' in obs[0]
+    assert 'global_xy' in obs[0]
+    assert 'global_target_xy' in obs[0]
+    run_episode(env=env)
 
 
 def test_standard_pogema_animation():
     env = pogema_v0(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42, on_target='finish'))
     env = AnimationMonitor(env)
     env.reset()
+    run_episode(env=env)
 
 
 def test_non_disappearing_pogema():
     env = pogema_v0(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42, on_target='nothing'))
     env.reset()
+    run_episode(env=env)
 
 
 def test_non_disappearing_pogema_animation():
     env = pogema_v0(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42, on_target='nothing'))
     env = AnimationMonitor(env)
     env.reset()
+    run_episode(env=env)
 
 
 def test_life_long_pogema():
     env = pogema_v0(GridConfig(num_agents=2, size=6, obs_radius=2, density=0.3, seed=42, on_target='restart'))
     env.reset()
+    run_episode(env=env)
 
 
 def test_life_long_pogema_animation():

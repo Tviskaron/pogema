@@ -48,8 +48,6 @@ class PogemaBase(gym.Env):
         self.grid: Grid = None
         self.config = config
 
-        full_size = self.config.obs_radius * 2 + 1
-        self.observation_space = gym.spaces.Box(-1.0, 1.0, shape=(3, full_size, full_size))
         self.action_space = gym.spaces.Discrete(len(self.config.MOVES))
         self._multi_action_sampler = ActionsSampler(self.action_space.n, seed=self.config.seed)
 
@@ -102,36 +100,28 @@ class Pogema(PogemaBase):
         super().__init__(config)
         self.active = None
 
-    def _obs(self):
-        return [self._get_agents_obs(index) for index in range(self.config.num_agents)]
-
-    def _get_infos(self):
-        infos = [dict() for _ in range(self.config.num_agents)]
-        for agent_idx in range(self.config.num_agents):
-            infos[agent_idx]['is_active'] = self.active[agent_idx]
-        return infos
-
-    def move_agents(self, actions):
-        if self.grid.config.collision_system == 'priority':
-            for agent_idx in range(self.config.num_agents):
-                if self.active[agent_idx]:
-                    self.grid.move(agent_idx, actions[agent_idx])
-        elif self.grid.config.collision_system == 'block_both':
-            used_cells = {}
-            agents_xy = self.grid.get_agents_xy()
-            for agent_idx, (x, y) in enumerate(agents_xy):
-                if self.active[agent_idx]:
-                    dx, dy = self.config.MOVES[actions[agent_idx]]
-                    used_cells[x + dx, y + dy] = 'blocked' if (x + dx, y + dy) in used_cells else 'visited'
-                    used_cells[x, y] = 'blocked'
-            for agent_idx in range(self.config.num_agents):
-                if self.active[agent_idx]:
-                    x, y = agents_xy[agent_idx]
-                    dx, dy = self.config.MOVES[actions[agent_idx]]
-                    if used_cells.get((x + dx, y + dy), None) != 'blocked':
-                        self.grid.move(agent_idx, actions[agent_idx])
+        full_size = self.config.obs_radius * 2 + 1
+        if self.config.observation_type == 'default':
+            self.observation_space = gym.spaces.Box(-1.0, 1.0, shape=(3, full_size, full_size))
+        elif self.config.observation_type == 'POMAPF':
+            self.observation_space: gym.spaces.Dict = gym.spaces.Dict(
+                obstacles=gym.spaces.Box(0.0, 1.0, shape=(full_size, full_size)),
+                agents=gym.spaces.Box(0.0, 1.0, shape=(full_size, full_size)),
+                xy=gym.spaces.Box(low=-1024, high=1024, shape=(2,), dtype=int),
+                target_xy=gym.spaces.Box(low=-1024, high=1024, shape=(2,), dtype=int),
+            )
+        elif self.config.observation_type == 'MAPF':
+            self.observation_space: gym.spaces.Dict = gym.spaces.Dict(
+                obstacles=gym.spaces.Box(0.0, 1.0, shape=(full_size, full_size)),
+                agents=gym.spaces.Box(0.0, 1.0, shape=(full_size, full_size)),
+                xy=gym.spaces.Box(low=-1024, high=1024, shape=(2,), dtype=int),
+                target_xy=gym.spaces.Box(low=-1024, high=1024, shape=(2,), dtype=int),
+                # global_obstacles=None, # todo define shapes of global state variables
+                # global_xy=None,
+                # global_target_xy=None,
+            )
         else:
-            raise ValueError('Unknown collision system: {}'.format(self.grid.config.collision_system))
+            raise ValueError(f"Unknown observation type: {self.grid.config.observation_type}")
 
     def step(self, action: list):
         assert len(action) == self.config.num_agents
@@ -166,6 +156,71 @@ class Pogema(PogemaBase):
         if return_info:
             return self._obs(),
         return self._obs()
+
+    def _obs(self):
+        if self.config.observation_type == 'default':
+            return [self._get_agents_obs(index) for index in range(self.config.num_agents)]
+        elif self.config.observation_type == 'POMAPF':
+            return self._pomapf_obs()
+
+        elif self.config.observation_type == 'MAPF':
+            results = self._pomapf_obs()
+            global_obstacles = self.grid.get_obstacles()
+            global_agents_xy = self.grid.get_agents_xy()
+            global_targets_xy = self.grid.get_targets_xy()
+
+            for agent_idx in range(self.config.num_agents):
+                result = results[agent_idx]
+                result.update(global_obstacles=global_obstacles)
+                result['global_xy'] = global_agents_xy[agent_idx]
+                result['global_target_xy'] = global_targets_xy[agent_idx]
+
+            return results
+        else:
+            raise ValueError(f"Unknown observation type: {self.grid.config.observation_type}")
+
+    def _pomapf_obs(self):
+        results = []
+        agents_xy_relative = self.grid.get_agents_xy_relative()
+        targets_xy_relative = self.grid.get_targets_xy_relative()
+
+        for agent_idx in range(self.config.num_agents):
+            result = {}
+            result['obstacles'] = self.grid.get_obstacles_for_agent(agent_idx)
+
+            result['agents'] = self.grid.get_positions(agent_idx)
+            result['xy'] = agents_xy_relative[agent_idx]
+            result['target_xy'] = targets_xy_relative[agent_idx]
+            results.append(result)
+        return results
+
+    def _get_infos(self):
+        infos = [dict() for _ in range(self.config.num_agents)]
+        for agent_idx in range(self.config.num_agents):
+            infos[agent_idx]['is_active'] = self.active[agent_idx]
+        return infos
+
+    def move_agents(self, actions):
+        if self.grid.config.collision_system == 'priority':
+            for agent_idx in range(self.config.num_agents):
+                if self.active[agent_idx]:
+                    self.grid.move(agent_idx, actions[agent_idx])
+        elif self.grid.config.collision_system == 'block_both':
+            used_cells = {}
+            agents_xy = self.grid.get_agents_xy()
+            for agent_idx, (x, y) in enumerate(agents_xy):
+                if self.active[agent_idx]:
+                    dx, dy = self.config.MOVES[actions[agent_idx]]
+                    used_cells[x + dx, y + dy] = 'blocked' if (x + dx, y + dy) in used_cells else 'visited'
+                    used_cells[x, y] = 'blocked'
+            for agent_idx in range(self.config.num_agents):
+                if self.active[agent_idx]:
+                    x, y = agents_xy[agent_idx]
+                    dx, dy = self.config.MOVES[actions[agent_idx]]
+                    if used_cells.get((x + dx, y + dy), None) != 'blocked':
+                        self.grid.move(agent_idx, actions[agent_idx])
+        else:
+            raise ValueError('Unknown collision system: {}'.format(self.grid.config.collision_system))
 
     def get_agents_xy_relative(self):
         return self.grid.get_agents_xy_relative()
