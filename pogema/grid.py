@@ -290,7 +290,6 @@ class CooperativeGrid(Grid):
 
     def move(self, agent_id, action):
         x, y = self.positions_xy[agent_id]
-        fx, fy = self.finishes_xy[agent_id]
         dx, dy = self.config.MOVES[action]
         if self.obstacles[x + dx, y + dy] == self.config.FREE:
             if self.positions[x + dx, y + dy] == self.config.FREE:
