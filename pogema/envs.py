@@ -6,7 +6,7 @@ from gym.error import ResetNeeded
 
 from pogema.grid import Grid, GridLifeLong, CooperativeGrid
 from pogema.grid_config import GridConfig
-from pogema.wrappers.metrics import MetricsWrapper, MetricsWrapperLifeLong
+from pogema.wrappers.metrics import MetricsWrapper
 from pogema.wrappers.multi_time_limit import MultiTimeLimit, CoopRewardWrapper
 from pogema.generator import generate_new_target
 
@@ -15,6 +15,7 @@ class ActionsSampler:
     """
     Samples the random actions for the given number of agents using the given seed.
     """
+
     def __init__(self, num_actions, seed=42):
         self._num_actions = num_actions
         self._rnd = None
@@ -96,48 +97,6 @@ class PogemaBase(gym.Env):
         return self.config.num_agents
 
 
-class PogemaCoopFinish(PogemaBase):
-    def __init__(self, config=GridConfig(num_agents=2)):
-        super().__init__(config)
-        self.num_agents = self.config.num_agents
-        self.is_multiagent = True
-        self.active = None
-
-    def _obs(self):
-        return [self._get_agents_obs(index) for index in range(self.config.num_agents)]
-
-    def step(self, action: list):
-        assert len(action) == self.config.num_agents
-        rewards = []
-
-        infos = [dict() for _ in range(self.config.num_agents)]
-
-        dones = []
-
-        for agent_idx in range(self.config.num_agents):
-            # A way to refactor:
-            agent_done = self.grid.move(agent_idx, action[agent_idx])
-            on_goal = self.grid.on_goal(agent_idx)
-            if agent_done:
-                rewards.append(1.0)
-            else:
-                rewards.append(0.0)
-            dones.append(on_goal)
-        obs = self._obs()
-        return obs, rewards, dones, infos
-
-    def reset(self, seed: Optional[int] = None, return_info: bool = False, options: Optional[dict] = None, ):
-        self.grid: CooperativeGrid = CooperativeGrid(grid_config=self.config)
-        self.active = {agent_idx: True for agent_idx in range(self.config.num_agents)}
-        return self._obs()
-
-    def get_agents_xy(self, only_active=False, ignore_borders=False):
-        return self.grid.get_agents_xy(only_active=only_active, ignore_borders=ignore_borders)
-
-    def get_targets_xy(self, only_active=False, ignore_borders=False):
-        return self.grid.get_targets_xy(only_active=only_active, ignore_borders=ignore_borders)
-
-
 class Pogema(PogemaBase):
     def __init__(self, config=GridConfig(num_agents=2)):
         super().__init__(config)
@@ -152,14 +111,37 @@ class Pogema(PogemaBase):
             infos[agent_idx]['is_active'] = self.active[agent_idx]
         return infos
 
+    def move_agents(self, actions):
+        if self.grid.config.collision_system == 'priority':
+            for agent_idx in range(self.config.num_agents):
+                if self.active[agent_idx]:
+                    self.grid.move(agent_idx, actions[agent_idx])
+        elif self.grid.config.collision_system == 'block_both':
+            used_cells = {}
+            agents_xy = self.grid.get_agents_xy()
+            for agent_idx, (x, y) in enumerate(agents_xy):
+                if self.active[agent_idx]:
+                    dx, dy = self.config.MOVES[actions[agent_idx]]
+                    used_cells[x + dx, y + dy] = 'blocked' if (x + dx, y + dy) in used_cells else 'visited'
+                    used_cells[x, y] = 'blocked'
+            for agent_idx in range(self.config.num_agents):
+                if self.active[agent_idx]:
+                    x, y = agents_xy[agent_idx]
+                    dx, dy = self.config.MOVES[actions[agent_idx]]
+                    if used_cells.get((x + dx, y + dy), None) != 'blocked':
+                        self.grid.move(agent_idx, actions[agent_idx])
+        else:
+            raise ValueError('Unknown collision system: {}'.format(self.grid.config.collision_system))
+
     def step(self, action: list):
         assert len(action) == self.config.num_agents
         rewards = []
 
         dones = []
+
+        self.move_agents(action)
+
         for agent_idx in range(self.config.num_agents):
-            if self.active[agent_idx]:
-                self.grid.move(agent_idx, action[agent_idx])
 
             on_goal = self.grid.on_goal(agent_idx)
             if on_goal and self.active[agent_idx]:
@@ -204,15 +186,10 @@ class Pogema(PogemaBase):
         return self.grid.get_state(ignore_borders=ignore_borders, as_dict=as_dict)
 
 
-class PogemaLifeLong(PogemaBase):
+class PogemaLifeLong(Pogema):
     def __init__(self, config=GridConfig(num_agents=2)):
         super().__init__(config)
-        self.active = None
         self.random_generators: list = [np.random.default_rng(config.seed + i) for i in range(config.num_agents)]
-        self._steps_after_new_target = [0] * self.config.num_agents
-
-    def _obs(self):
-        return [self._get_agents_obs(index) for index in range(self.config.num_agents)]
 
     def step(self, action: list):
         assert len(action) == self.config.num_agents
@@ -221,12 +198,9 @@ class PogemaLifeLong(PogemaBase):
         infos = [dict() for _ in range(self.config.num_agents)]
 
         dones = [False] * self.config.num_agents
+
+        self.move_agents(action)
         for agent_idx in range(self.config.num_agents):
-            self._steps_after_new_target[agent_idx] += 1
-
-            if self.active[agent_idx]:
-                self.grid.move(agent_idx, action[agent_idx])
-
             on_goal = self.grid.on_goal(agent_idx)
             if on_goal and self.active[agent_idx]:
                 dones[agent_idx] = True
@@ -239,8 +213,8 @@ class PogemaLifeLong(PogemaBase):
                                                                        self.grid.point_to_component,
                                                                        self.grid.component_to_points,
                                                                        self.grid.positions_xy[agent_idx])
-                self._steps_after_new_target[agent_idx] = 0
 
+        for agent_idx in range(self.config.num_agents):
             infos[agent_idx]['is_active'] = self.active[agent_idx]
 
         obs = self._obs()
@@ -249,26 +223,45 @@ class PogemaLifeLong(PogemaBase):
     def reset(self, **kwargs):
         self.grid: Grid = GridLifeLong(grid_config=self.config)
         self.active = {agent_idx: True for agent_idx in range(self.config.num_agents)}
-        self._steps_after_new_target = [0] * self.config.num_agents
+
         return self._obs()
 
-    def get_agents_xy_relative(self):
-        return self.grid.get_agents_xy_relative()
 
-    def get_targets_xy_relative(self):
-        return self.grid.get_targets_xy_relative()
+class PogemaCoopFinish(Pogema):
+    def __init__(self, config=GridConfig(num_agents=2)):
+        super().__init__(config)
+        self.num_agents = self.config.num_agents
+        self.is_multiagent = True
+        self.active = None
 
-    def get_obstacles(self, ignore_borders=False):
-        return self.grid.get_obstacles(ignore_borders=ignore_borders)
+    def step(self, action: list):
+        assert len(action) == self.config.num_agents
+        rewards = []
 
-    def get_agents_xy(self, only_active=False, ignore_borders=False):
-        return self.grid.get_agents_xy(only_active=only_active, ignore_borders=ignore_borders)
+        infos = [dict() for _ in range(self.config.num_agents)]
 
-    def get_targets_xy(self, only_active=False, ignore_borders=False):
-        return self.grid.get_targets_xy(only_active=only_active, ignore_borders=ignore_borders)
+        dones = []
 
-    def get_state(self, ignore_borders=False, as_dict=False):
-        return self.grid.get_state(ignore_borders=ignore_borders, as_dict=as_dict)
+        self.move_agents(action)
+
+        for agent_idx in range(self.config.num_agents):
+            on_goal = self.grid.on_goal(agent_idx)
+            if on_goal:
+                rewards.append(1.0)
+            else:
+                rewards.append(0.0)
+            dones.append(on_goal)
+
+        for agent_idx in range(self.config.num_agents):
+            infos[agent_idx]['is_active'] = self.active[agent_idx]
+
+        obs = self._obs()
+        return obs, rewards, dones, infos
+
+    def reset(self, seed: Optional[int] = None, return_info: bool = False, options: Optional[dict] = None, ):
+        self.grid: CooperativeGrid = CooperativeGrid(grid_config=self.config)
+        self.active = {agent_idx: True for agent_idx in range(self.config.num_agents)}
+        return self._obs()
 
 
 def _make_pogema(grid_config):
@@ -283,7 +276,8 @@ def _make_pogema(grid_config):
 
     env = MultiTimeLimit(env, grid_config.max_episode_steps)
     if grid_config.on_target == 'restart':
-        env = MetricsWrapperLifeLong(env)
+        pass
+        # env = MetricsWrapperLifeLong(env)
     elif grid_config.on_target == 'nothing':
         env = CoopRewardWrapper(env, grid_config.max_episode_steps)
         env = MetricsWrapper(env)

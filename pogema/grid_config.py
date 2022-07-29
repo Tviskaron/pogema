@@ -20,6 +20,7 @@ class GridConfig(BaseModel, ):
     obs_radius: int = 5
     agents_xy: Optional[list] = None
     targets_xy: Optional[list] = None
+    collision_system: Literal['block_both', 'priority'] = 'priority'
 
     map: Union[list, str] = None
 
@@ -136,6 +137,7 @@ class GridConfig(BaseModel, ):
 
 class PredefinedDifficultyDensity30(GridConfig):
     density: float = 0.3
+    collision_system: Literal['priority'] = 'priority'
 
     @validator('density')
     def density_restrictions(cls, v):

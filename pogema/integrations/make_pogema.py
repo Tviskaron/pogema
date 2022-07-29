@@ -55,7 +55,6 @@ def make_pogema(grid_config: Union[GridConfig, dict] = GridConfig(), *args, **kw
     elif grid_config.integration == 'PettingZoo':
         return parallel_env(grid_config)
     elif grid_config.integration == 'gym':
-        assert grid_config.num_agents == 1, "Pogema supports gym only in single-agent mode"
         return make_single_agent_gym(grid_config)
 
     raise KeyError(grid_config.integration)
