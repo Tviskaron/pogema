@@ -181,7 +181,7 @@ class AnimationMonitor(gym.Wrapper):
         self.targets_xy_history.append(deepcopy(self.env.grid.finishes_xy))
         if all(dones):
             save_tau = self.animation_config.save_every_idx_episode
-            if save_tau and self._episode_idx % save_tau:
+            if save_tau and (self._episode_idx + 1) % save_tau:
                 if not os.path.exists(self.animation_config.directory):
                     logger.info(f"Creating pogema monitor directory {self.animation_config.directory}", )
                     os.makedirs(self.animation_config.directory, exist_ok=True)
