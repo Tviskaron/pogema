@@ -181,12 +181,13 @@ class AnimationMonitor(gym.Wrapper):
         self.targets_xy_history.append(deepcopy(self.env.grid.finishes_xy))
         if all(dones):
             save_tau = self.animation_config.save_every_idx_episode
-            if save_tau and (self._episode_idx + 1) % save_tau:
-                if not os.path.exists(self.animation_config.directory):
-                    logger.info(f"Creating pogema monitor directory {self.animation_config.directory}", )
-                    os.makedirs(self.animation_config.directory, exist_ok=True)
-                self.save_animation(
-                    name=self.animation_config.directory + self.pick_name(self.grid_cfg, self._episode_idx))
+            if save_tau:
+                if (self._episode_idx + 1) % save_tau or save_tau == 1:
+                    if not os.path.exists(self.animation_config.directory):
+                        logger.info(f"Creating pogema monitor directory {self.animation_config.directory}", )
+                        os.makedirs(self.animation_config.directory, exist_ok=True)
+                    self.save_animation(
+                        name=self.animation_config.directory + self.pick_name(self.grid_cfg, self._episode_idx))
 
         return obs, reward, dones, info
 
