@@ -8,7 +8,7 @@ import numpy as np
 from gym import utils
 from io import StringIO
 
-from pogema.generator import generate_obstacles, generate_positions_and_targets_fast,\
+from pogema.generator import generate_obstacles, generate_positions_and_targets_fast, \
     get_components, generate_new_target
 from .grid_config import GridConfig
 
@@ -287,7 +287,7 @@ class GridLifeLong(Grid):
 class CooperativeGrid(Grid):
     def __init__(self, grid_config: GridConfig, add_artificial_border: bool = True, num_retries=10):
         super().__init__(grid_config)
-        
+
     def move(self, agent_id, action):
         x, y = self.positions_xy[agent_id]
         fx, fy = self.finishes_xy[agent_id]
@@ -299,4 +299,3 @@ class CooperativeGrid(Grid):
                 y += dy
                 self.positions[x, y] = self.config.OBSTACLE
         self.positions_xy[agent_id] = (x, y)
-        return x == fx and y == fy
