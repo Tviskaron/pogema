@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import gym
 
 
@@ -17,7 +19,7 @@ class MetricsForwardingWrapper(gym.Wrapper):
         observations, rewards, dones, infos = self.env.step(action)
         for info in infos:
             if 'metrics' in info:
-                info.update(episode_extra_stats=info['metrics'])
+                info.update(episode_extra_stats=deepcopy(info['metrics']))
         return observations, rewards, dones, infos
 
 
