@@ -20,7 +20,7 @@ def test_integrations():
 
 
 def test_sample_factory_integration():
-    env = pogema_v0(GridConfig(seed=7, num_agents=4, size=10, integration='SampleFactory'))
+    env = pogema_v0(GridConfig(seed=7, num_agents=4, size=12, integration='SampleFactory'))
     env.reset()
 
     assert env.num_agents == 4
@@ -34,7 +34,6 @@ def test_sample_factory_integration():
             _, _, dones, infos = env.step(env.sample_actions())
 
         assert np.isclose(infos[0]['episode_extra_stats']['ISR'], 0.0)
-        assert np.isclose(infos[1]['episode_extra_stats']['ISR'], 0.0)
         assert np.isclose(infos[0]['episode_extra_stats']['CSR'], 0.0)
 
 

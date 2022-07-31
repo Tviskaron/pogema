@@ -3,12 +3,11 @@ from typing import Optional
 import numpy as np
 import gym
 from gym.error import ResetNeeded
-from gym.wrappers import TimeLimit
 
 from pogema.grid import Grid, GridLifeLong, CooperativeGrid
 from pogema.grid_config import GridConfig
-from pogema.wrappers.metrics import MetricsWrapper, LifeLongSolvedInstancesMetric, NonDisappearEpLengthMetric, \
-    NonDisappearCSRMetric, NonDisappearISRMetric
+from pogema.wrappers.metrics import LifeLongSolvedInstancesMetric, NonDisappearEpLengthMetric, \
+    NonDisappearCSRMetric, NonDisappearISRMetric, EpLengthMetric, ISRMetric, CSRMetric
 from pogema.wrappers.multi_time_limit import MultiTimeLimit
 from pogema.generator import generate_new_target
 
@@ -351,7 +350,10 @@ def _make_pogema(grid_config):
         env = NonDisappearCSRMetric(env)
         env = NonDisappearEpLengthMetric(env)
     elif grid_config.on_target == 'finish':
-        env = MetricsWrapper(env)
+        # env = MetricsWrapper(env)
+        env = ISRMetric(env)
+        env = CSRMetric(env)
+        env = EpLengthMetric(env)
     else:
         raise KeyError(f'Unknown on_target option: {grid_config.on_target}')
 

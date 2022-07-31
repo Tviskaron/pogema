@@ -69,21 +69,15 @@ def run_episode(grid_config=None, env=None):
 def test_metrics():
     _, _, _, infos = run_episode(GridConfig(num_agents=2, seed=5, size=5, max_episode_steps=64))[-1]
     assert np.isclose(infos[0]['metrics']['CSR'], 0.0)
-    assert np.isclose(infos[0]['metrics']['ISR'], 0.0)
-    assert np.isclose(infos[1]['metrics']['ISR'], 1.0)
+    assert np.isclose(infos[0]['metrics']['ISR'], 0.5)
 
     _, _, _, infos = run_episode(GridConfig(num_agents=2, seed=5, size=5, max_episode_steps=512))[-1]
     assert np.isclose(infos[0]['metrics']['CSR'], 1.0)
     assert np.isclose(infos[0]['metrics']['ISR'], 1.0)
-    assert np.isclose(infos[1]['metrics']['ISR'], 1.0)
 
     _, _, _, infos = run_episode(GridConfig(num_agents=5, seed=5, size=5, max_episode_steps=64))[-1]
     assert np.isclose(infos[0]['metrics']['CSR'], 0.0)
-    assert np.isclose(infos[0]['metrics']['ISR'], 0.0)
-    assert np.isclose(infos[1]['metrics']['ISR'], 0.0)
-    assert np.isclose(infos[2]['metrics']['ISR'], 0.0)
-    assert np.isclose(infos[3]['metrics']['ISR'], 1.0)
-    assert np.isclose(infos[4]['metrics']['ISR'], 0.0)
+    assert np.isclose(infos[0]['metrics']['ISR'], 0.2)
 
 
 def test_standard_pogema():
