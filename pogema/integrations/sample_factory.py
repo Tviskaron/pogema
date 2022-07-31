@@ -12,6 +12,15 @@ class IsMultiAgentWrapper(gym.Wrapper):
         return self.env.get_num_agents()
 
 
+class MetricsForwardingWrapper(gym.Wrapper):
+    def step(self, action):
+        observations, rewards, dones, infos = self.env.step(action)
+        for info in infos:
+            if 'metrics' in info:
+                info.update(episode_extra_stats=info['metrics'])
+        return observations, rewards, dones, infos
+
+
 class AutoResetWrapper(gym.Wrapper):
     def step(self, action):
         observations, rewards, dones, infos = self.env.step(action)
