@@ -3,11 +3,13 @@ from typing import Optional
 import numpy as np
 import gym
 from gym.error import ResetNeeded
+from gym.wrappers import TimeLimit
 
 from pogema.grid import Grid, GridLifeLong, CooperativeGrid
 from pogema.grid_config import GridConfig
-from pogema.wrappers.metrics import MetricsWrapper
-from pogema.wrappers.multi_time_limit import MultiTimeLimit, CoopRewardWrapper
+from pogema.wrappers.metrics import MetricsWrapper, LifeLongSolvedInstancesMetric, NonDisappearEpLengthMetric, \
+    NonDisappearCSRMetric, NonDisappearISRMetric
+from pogema.wrappers.multi_time_limit import MultiTimeLimit
 from pogema.generator import generate_new_target
 
 
@@ -99,7 +101,7 @@ class Pogema(PogemaBase):
     def __init__(self, config=GridConfig(num_agents=2)):
         super().__init__(config)
         self.active = None
-
+        self.was_on_goal = None
         full_size = self.config.obs_radius * 2 + 1
         if self.config.observation_type == 'default':
             self.observation_space = gym.spaces.Box(-1.0, 1.0, shape=(3, full_size, full_size))
@@ -127,9 +129,10 @@ class Pogema(PogemaBase):
         assert len(action) == self.config.num_agents
         rewards = []
 
-        dones = []
+        terminated = []
 
         self.move_agents(action)
+        self.update_was_on_goal()
 
         for agent_idx in range(self.config.num_agents):
 
@@ -138,7 +141,7 @@ class Pogema(PogemaBase):
                 rewards.append(1.0)
             else:
                 rewards.append(0.0)
-            dones.append(on_goal)
+            terminated.append(on_goal)
 
         for agent_idx in range(self.config.num_agents):
             if self.grid.on_goal(agent_idx):
@@ -147,14 +150,26 @@ class Pogema(PogemaBase):
 
         infos = self._get_infos()
 
-        obs = self._obs()
-        return obs, rewards, dones, infos
+        observations = self._obs()
+        return observations, rewards, terminated, infos
+
+    def _initialize_grid(self):
+        self.grid: Grid = Grid(grid_config=self.config)
+
+    def update_was_on_goal(self):
+        self.was_on_goal = [self.grid.on_goal(agent_idx) and self.active[agent_idx]
+                            for agent_idx in range(self.config.num_agents)]
 
     def reset(self, seed: Optional[int] = None, return_info: bool = False, options: Optional[dict] = None, ):
-        self.grid: Grid = Grid(grid_config=self.config)
+        self._initialize_grid()
         self.active = {agent_idx: True for agent_idx in range(self.config.num_agents)}
+        self.update_was_on_goal()
+
+        if seed is not None:
+            self.grid.seed = seed
+
         if return_info:
-            return self._obs(),
+            return self._obs(), self._get_infos()
         return self._obs()
 
     def _obs(self):
@@ -246,6 +261,9 @@ class PogemaLifeLong(Pogema):
         super().__init__(config)
         self.random_generators: list = [np.random.default_rng(config.seed + i) for i in range(config.num_agents)]
 
+    def _initialize_grid(self):
+        self.grid: Grid = GridLifeLong(grid_config=self.config)
+
     def step(self, action: list):
         assert len(action) == self.config.num_agents
         rewards = []
@@ -255,10 +273,11 @@ class PogemaLifeLong(Pogema):
         dones = [False] * self.config.num_agents
 
         self.move_agents(action)
+        self.update_was_on_goal()
+
         for agent_idx in range(self.config.num_agents):
             on_goal = self.grid.on_goal(agent_idx)
             if on_goal and self.active[agent_idx]:
-                dones[agent_idx] = True
                 rewards.append(1.0)
             else:
                 rewards.append(0.0)
@@ -275,12 +294,6 @@ class PogemaLifeLong(Pogema):
         obs = self._obs()
         return obs, rewards, dones, infos
 
-    def reset(self, **kwargs):
-        self.grid: Grid = GridLifeLong(grid_config=self.config)
-        self.active = {agent_idx: True for agent_idx in range(self.config.num_agents)}
-
-        return self._obs()
-
 
 class PogemaCoopFinish(Pogema):
     def __init__(self, config=GridConfig(num_agents=2)):
@@ -289,34 +302,34 @@ class PogemaCoopFinish(Pogema):
         self.is_multiagent = True
         self.active = None
 
+    def _initialize_grid(self):
+        self.grid: CooperativeGrid = CooperativeGrid(grid_config=self.config)
+
     def step(self, action: list):
         assert len(action) == self.config.num_agents
-        rewards = []
+        rewards = [0.0 for _ in range(self.config.num_agents)]
 
         infos = [dict() for _ in range(self.config.num_agents)]
 
-        dones = []
-
         self.move_agents(action)
+        self.update_was_on_goal()
 
-        for agent_idx in range(self.config.num_agents):
-            on_goal = self.grid.on_goal(agent_idx)
-            if on_goal:
-                rewards.append(1.0)
-            else:
-                rewards.append(0.0)
-            dones.append(on_goal)
-
+        is_task_solved = all(self.was_on_goal)
         for agent_idx in range(self.config.num_agents):
             infos[agent_idx]['is_active'] = self.active[agent_idx]
 
         obs = self._obs()
+
+        dones = [is_task_solved] * self.config.num_agents
         return obs, rewards, dones, infos
 
-    def reset(self, seed: Optional[int] = None, return_info: bool = False, options: Optional[dict] = None, ):
-        self.grid: CooperativeGrid = CooperativeGrid(grid_config=self.config)
-        self.active = {agent_idx: True for agent_idx in range(self.config.num_agents)}
-        return self._obs()
+
+class CoopFinishRewardWrapper(gym.Wrapper):
+    def step(self, action):
+        observations, rewards, dones, infos = self.env.step(action)
+        truncated = all(dones)
+        rewards = [1.0 if on_goal and truncated else 0.0 for on_goal in self.was_on_goal]
+        return observations, rewards, dones, infos
 
 
 def _make_pogema(grid_config):
@@ -331,12 +344,15 @@ def _make_pogema(grid_config):
 
     env = MultiTimeLimit(env, grid_config.max_episode_steps)
     if grid_config.on_target == 'restart':
-        pass
-        # env = MetricsWrapperLifeLong(env)
+        env = LifeLongSolvedInstancesMetric(env)
     elif grid_config.on_target == 'nothing':
-        env = CoopRewardWrapper(env, grid_config.max_episode_steps)
+        env = CoopFinishRewardWrapper(env)
+        env = NonDisappearISRMetric(env)
+        env = NonDisappearCSRMetric(env)
+        env = NonDisappearEpLengthMetric(env)
+    elif grid_config.on_target == 'finish':
         env = MetricsWrapper(env)
     else:
-        env = MetricsWrapper(env)
+        raise KeyError(f'Unknown on_target option: {grid_config.on_target}')
 
     return env
