@@ -157,6 +157,7 @@ class AnimationMonitor(gym.Wrapper):
     """
     Defines the animation, which saves the episode as SVG.
     """
+
     def __init__(self, env, animation_config=AnimationConfig()):
         super().__init__(env)
         self.grid_cfg = None
@@ -186,8 +187,10 @@ class AnimationMonitor(gym.Wrapper):
                     if not os.path.exists(self.animation_config.directory):
                         logger.info(f"Creating pogema monitor directory {self.animation_config.directory}", )
                         os.makedirs(self.animation_config.directory, exist_ok=True)
-                    self.save_animation(
-                        name=self.animation_config.directory + self.pick_name(self.grid_cfg, self._episode_idx))
+
+                    path = os.path.join(self.animation_config.directory,
+                                        self.pick_name(self.grid_cfg, self._episode_idx))
+                    self.save_animation(path)
 
         return obs, reward, dones, info
 
