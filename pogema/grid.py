@@ -233,6 +233,15 @@ class Grid:
             with closing(outfile):
                 return outfile.getvalue()
 
+    def move_agent_to_cell(self, agent_id, x, y):
+        if self.positions[self.positions_xy[agent_id]] == self.config.FREE:
+            raise KeyError("Agent {} is not in the map".format(agent_id))
+        self.positions[self.positions_xy[agent_id]] = self.config.FREE
+        if self.obstacles[x, y] != self.config.FREE or self.positions[x, y] != self.config.FREE:
+            raise ValueError(f"Can't force agent to blocked position {x} {y}")
+        self.positions_xy[agent_id] = x, y
+        self.positions[self.positions_xy[agent_id]] = self.config.OBSTACLE
+
     def move(self, agent_id, action):
         x, y = self.positions_xy[agent_id]
 
@@ -260,10 +269,28 @@ class Grid:
         self.inactive.add(agent_id)
         self.active.remove(agent_id)
 
-        x, y = self.positions_xy[agent_id]
-        self.positions[x, y] = self.config.FREE
+        self.positions[self.positions_xy[agent_id]] = self.config.FREE
 
         return True
+
+    def show_agent(self, agent_id):
+        if agent_id not in self.inactive:
+            return False
+
+        self.inactive.remove(agent_id)
+        self.active.add(agent_id)
+        if self.positions[self.positions_xy[agent_id]] == self.config.OBSTACLE:
+            raise KeyError("The cell is already occupied")
+        self.positions[self.positions_xy[agent_id]] = self.config.OBSTACLE
+        return True
+
+    def set_activity(self, agent_idx, is_active):
+        if is_active and agent_idx in self.inactive:
+            self.active.add(agent_idx)
+            self.inactive.remove(agent_idx)
+        elif not is_active and agent_idx in self.active:
+            self.inactive.add(agent_idx)
+            self.active.remove(agent_idx)
 
 
 class GridLifeLong(Grid):
@@ -286,7 +313,7 @@ class GridLifeLong(Grid):
 
 class CooperativeGrid(Grid):
     def __init__(self, grid_config: GridConfig, add_artificial_border: bool = True, num_retries=10):
-        super().__init__(grid_config)
+        super().__init__(grid_config, add_artificial_border, num_retries)
 
     def move(self, agent_id, action):
         x, y = self.positions_xy[agent_id]

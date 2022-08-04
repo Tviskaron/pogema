@@ -9,7 +9,9 @@ from pogema import Easy32x32, Normal32x32, Hard32x32, ExtraHard32x32
 from pogema import Easy64x64, Normal64x64, Hard64x64, ExtraHard64x64
 
 from pogema.animation import AnimationMonitor
+from pogema.envs import ActionsSampler
 from pogema.grid import GridConfig
+from pogema.wrappers.persistence import PersistentWrapper
 
 
 class ActionMapping:
@@ -166,3 +168,31 @@ def test_predefined_configurations():
         gc = make_grid_config_func(seed=42)
         env = pogema_v0(gc)
         env.reset()
+
+def test_persistent_env(num_steps=100):
+    seed = 42
+    env = pogema_v0(grid_config=GridConfig(on_target='finish', seed=seed, num_agents=2, density=0.132, size=3, obs_radius=2))
+    env = PersistentWrapper(env)
+    env.reset()
+    action_sampler = ActionsSampler(env.action_space.n, seed=seed)
+
+    env.render()
+    first_run_observations = []
+    for _ in range(num_steps):
+        obs, *_ = env.step(action_sampler.sample_actions(dim=env.get_num_agents()))
+        first_run_observations.append(obs)
+
+    # resetting the environment to the initial state using backward steps
+    for _ in range(num_steps):
+        env.step_back()
+    env.render()
+    action_sampler.update_seed(seed)
+    for step_idx in range(num_steps):
+        obs, *_ = env.step(action_sampler.sample_actions(dim=env.get_num_agents()))
+        from time import sleep
+
+        print('------' )
+        print(obs[1][2], '\n' * 2,  first_run_observations[step_idx][1][2])
+        sleep(0.001)
+        # print(np.isclose(np.array(first_run_observations[step_idx]), np.array(obs)))
+        assert np.isclose(np.array(first_run_observations[step_idx]), np.array(obs)).all()
