@@ -55,7 +55,7 @@ class Grid:
                 starts_xy, finishes_xy = generate_positions_and_targets_fast(obstacles, self.config)
 
         if not starts_xy or not finishes_xy or len(starts_xy) != len(finishes_xy):
-            raise OverflowError("Can't create task. Please check grid config, especially density, num_agent and map.")
+            raise OverflowError("Can't create task. Please check grid grid_config, especially density, num_agent and map.")
 
         if add_artificial_border:
             r = self.config.obs_radius
@@ -85,8 +85,7 @@ class Grid:
         self.finishes_xy = finishes_xy
         self.positions_xy = starts_xy
         self._initial_xy = deepcopy(starts_xy)
-        self.inactive = set()
-        self.active = set([agent_id for agent_id in range(self.config.num_agents)])
+        self.is_active = {agent_id: True for agent_id in range(self.config.num_agents)}
 
     def get_obstacles(self, ignore_borders=False):
         gc = self.config
@@ -106,13 +105,13 @@ class Grid:
         return deepcopy(self.config)
 
     # def _get_grid_config(self) -> GridConfig:
-    #     return self.env.config
+    #     return self.env.grid_config
 
     def _prepare_positions(self, positions, only_active, ignore_borders):
         gc = self.config
 
         if only_active:
-            positions = self._filter_inactive(positions, list(self.active))
+            positions = self._filter_inactive(positions, [idx for idx, active in self.is_active.items() if active])
 
         if ignore_borders:
             positions = self._cut_borders_xy(positions, gc.obs_radius)
@@ -207,8 +206,8 @@ class Grid:
     def render(self, mode='human'):
         outfile = StringIO() if mode == 'ansi' else sys.stdout
         chars = string.digits + string.ascii_letters + string.punctuation
-        positions_map = {(x, y): id_ for id_, (x, y) in enumerate(self.positions_xy) if id_ not in self.inactive}
-        finishes_map = {(x, y): id_ for id_, (x, y) in enumerate(self.finishes_xy) if id_ not in self.inactive}
+        positions_map = {(x, y): id_ for id_, (x, y) in enumerate(self.positions_xy) if self.is_active[id_]}
+        finishes_map = {(x, y): id_ for id_, (x, y) in enumerate(self.finishes_xy) if self.is_active[id_]}
         for line_index, line in enumerate(self.obstacles):
             out = ''
             for cell_index, cell in enumerate(line):
@@ -260,37 +259,26 @@ class Grid:
         return self.positions_xy[agent_id] == self.finishes_xy[agent_id]
 
     def is_active(self, agent_id):
-        return agent_id in self.inactive
+        return self.is_active[agent_id]
 
     def hide_agent(self, agent_id):
-        if agent_id in self.inactive:
+        if not self.is_active[agent_id]:
             return False
-
-        self.inactive.add(agent_id)
-        self.active.remove(agent_id)
+        self.is_active[agent_id] = False
 
         self.positions[self.positions_xy[agent_id]] = self.config.FREE
 
         return True
 
     def show_agent(self, agent_id):
-        if agent_id not in self.inactive:
+        if self.is_active[agent_id]:
             return False
 
-        self.inactive.remove(agent_id)
-        self.active.add(agent_id)
+        self.is_active[agent_id] = True
         if self.positions[self.positions_xy[agent_id]] == self.config.OBSTACLE:
             raise KeyError("The cell is already occupied")
         self.positions[self.positions_xy[agent_id]] = self.config.OBSTACLE
         return True
-
-    def set_activity(self, agent_idx, is_active):
-        if is_active and agent_idx in self.inactive:
-            self.active.add(agent_idx)
-            self.inactive.remove(agent_idx)
-        elif not is_active and agent_idx in self.active:
-            self.inactive.add(agent_idx)
-            self.active.remove(agent_idx)
 
 
 class GridLifeLong(Grid):

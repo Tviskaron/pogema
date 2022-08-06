@@ -11,7 +11,6 @@ from pogema import Easy64x64, Normal64x64, Hard64x64, ExtraHard64x64
 from pogema.animation import AnimationMonitor
 from pogema.envs import ActionsSampler
 from pogema.grid import GridConfig
-from pogema.wrappers.persistence import PersistentWrapper
 
 
 class ActionMapping:
@@ -169,30 +168,43 @@ def test_predefined_configurations():
         env = pogema_v0(gc)
         env.reset()
 
+
 def test_persistent_env(num_steps=100):
     seed = 42
-    env = pogema_v0(grid_config=GridConfig(on_target='finish', seed=seed, num_agents=2, density=0.132, size=3, obs_radius=2))
-    env = PersistentWrapper(env)
+
+    env = pogema_v0(
+        grid_config=GridConfig(on_target='finish', seed=seed, num_agents=8, density=0.132, size=8, obs_radius=2,
+                               persistent=True))
+
     env.reset()
     action_sampler = ActionsSampler(env.action_space.n, seed=seed)
 
-    env.render()
     first_run_observations = []
-    for _ in range(num_steps):
-        obs, *_ = env.step(action_sampler.sample_actions(dim=env.get_num_agents()))
-        first_run_observations.append(obs)
+
+    def state_repr(observations, rewards, dones, infos):
+        return np.concatenate([np.array(observations).flatten(), dones, np.array(rewards), ])
+
+    for current_step in range(num_steps):
+        actions = action_sampler.sample_actions(dim=env.get_num_agents())
+        obs, reward, done, info = env.step(actions)
+
+        first_run_observations.append(state_repr(obs, reward, done, info))
+        if all(done):
+            break
 
     # resetting the environment to the initial state using backward steps
-    for _ in range(num_steps):
-        env.step_back()
-    env.render()
-    action_sampler.update_seed(seed)
-    for step_idx in range(num_steps):
-        obs, *_ = env.step(action_sampler.sample_actions(dim=env.get_num_agents()))
-        from time import sleep
+    for current_step in range(num_steps):
+        if not env.step_back():
+            break
 
-        print('------' )
-        print(obs[1][2], '\n' * 2,  first_run_observations[step_idx][1][2])
-        sleep(0.001)
-        # print(np.isclose(np.array(first_run_observations[step_idx]), np.array(obs)))
-        assert np.isclose(np.array(first_run_observations[step_idx]), np.array(obs)).all()
+    action_sampler = ActionsSampler(env.action_space.n, seed=seed)
+
+    second_run_observations = []
+    for current_step in range(num_steps):
+        actions = action_sampler.sample_actions(dim=env.get_num_agents())
+        obs, reward, done, info = env.step(actions)
+        second_run_observations.append(state_repr(obs, reward, done, info))
+        assert np.isclose(first_run_observations[current_step], second_run_observations[current_step]).all()
+        if all(done):
+            break
+    assert np.isclose(first_run_observations, second_run_observations).all()
